@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Portafolio de Stefano Mazzotti, Trainee de Ingeniería de Datos: pipelines en BigQuery, calidad y gobierno de datos.">
+<title>Stefano Mazzotti · Data Engineering</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@500;700;800&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: una sola columna de lectura recorrida por el "linaje" de datos (Landing → Raw → Master → Business); cada proyecto es un caso con problema, solución y resultado. */
+:root{
+  --bg:#F1F3F2; --surface:#FFFFFF; --ink:#16201E; --muted:#5A6865; --line:#D4DBD9;
+  --accent:#2944C2; --accent-soft:#E3E8FB; --warn:#B4530A; --warn-soft:#FBEBDD; --ok:#1F7A55;
+  --code-bg:#E9EDEC;
+  --f-display:"Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
+  --f-body:"IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0F1415; --surface:#161D1E; --ink:#E5ECEA; --muted:#97A6A3; --line:#2A3436;
+  --accent:#94A8FF; --accent-soft:#1E2747; --warn:#F2A660; --warn-soft:#3A2514; --ok:#5FCF9C;
+  --code-bg:#1B2324; color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0F1415; --surface:#161D1E; --ink:#E5ECEA; --muted:#97A6A3; --line:#2A3436;
+  --accent:#94A8FF; --accent-soft:#1E2747; --warn:#F2A660; --warn-soft:#3A2514; --ok:#5FCF9C;
+  --code-bg:#1B2324; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:1rem;line-height:1.6}
+.wrap{max-width:1040px;margin:0 auto;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:0}
+a{color:var(--accent)}
+a:focus-visible,button:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:4px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;line-height:1.1}
+p{margin:0}
+.mono{font-family:var(--f-mono)}
+.eyebrow{font-family:var(--f-mono);font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+
+/* ---------- hero ---------- */
+.hero{display:grid;grid-template-columns:1.15fr 1fr;gap:48px;align-items:center;padding-block:72px 56px}
+.hero h1{font-size:clamp(2.6rem,6vw,4.4rem);font-weight:800;letter-spacing:-.025em}
+.hero h1 span{display:block;color:var(--muted);font-weight:500}
+.hero .lede{margin-top:20px;font-size:1.15rem;max-width:34ch;color:var(--ink)}
+.hero .meta{margin-top:24px;display:flex;flex-wrap:wrap;gap:10px 20px;font-size:.9rem;color:var(--muted)}
+.btn{display:inline-flex;align-items:center;gap:8px;margin-top:28px;padding:10px 18px;border-radius:6px;background:var(--accent);color:var(--bg);font-weight:600;text-decoration:none;font-size:.95rem}
+.btn:hover{filter:brightness(1.08)}
+
+.query{background:var(--surface);border:1px solid var(--line);border-radius:10px;overflow:hidden;min-width:0}
+.query .bar{display:flex;justify-content:space-between;gap:12px;padding:10px 14px;border-bottom:1px solid var(--line);font-family:var(--f-mono);font-size:.72rem;color:var(--muted)}
+.query pre{margin:0;padding:16px;font-family:var(--f-mono);font-size:.82rem;line-height:1.7;overflow-x:auto;color:var(--ink)}
+.kw{color:var(--accent);font-weight:500}.str{color:var(--ok)}.cm{color:var(--muted)}.num{color:var(--warn)}
+.query table{width:100%;border-collapse:collapse;font-family:var(--f-mono);font-size:.75rem;border-top:1px solid var(--line)}
+.query th,.query td{text-align:left;padding:8px 14px;border-bottom:1px solid var(--line);white-space:nowrap}
+.query th{color:var(--muted);font-weight:400;background:var(--code-bg)}
+.query .tbl{overflow-x:auto}
+.query .foot{padding:8px 14px;font-family:var(--f-mono);font-size:.7rem;color:var(--muted)}
+
+/* ---------- lineage ---------- */
+.lineage{display:flex;flex-wrap:wrap;gap:8px;align-items:stretch;padding-block:20px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.node{flex:1 1 150px;display:flex;flex-direction:column;gap:2px;padding:10px 14px;border-left:3px solid var(--accent)}
+.node b{font-family:var(--f-display);font-size:1rem}
+.node small{font-family:var(--f-mono);font-size:.72rem;color:var(--muted)}
+.arrow{align-self:center;color:var(--muted);font-family:var(--f-mono)}
+
+/* ---------- sections ---------- */
+section{padding-block:72px 8px}
+.sec-head{display:flex;justify-content:space-between;align-items:baseline;gap:16px;flex-wrap:wrap;margin-bottom:32px}
+.sec-head h2{font-size:clamp(1.7rem,3.4vw,2.3rem);font-weight:700;letter-spacing:-.015em}
+
+.about{display:grid;grid-template-columns:1fr 1fr;gap:40px}
+.about p{max-width:62ch;color:var(--ink)}
+.about p+p{margin-top:14px}
+.facts{display:grid;gap:0;align-content:start}
+.facts div{display:grid;grid-template-columns:130px 1fr;gap:16px;padding:12px 0;border-bottom:1px solid var(--line);font-size:.95rem}
+.facts dt{font-family:var(--f-mono);font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;padding-top:3px}
+.facts dd{margin:0}
+
+/* ---------- case study ---------- */
+.case{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:clamp(20px,4vw,40px);display:grid;gap:28px}
+.case + .case{margin-top:28px}
+.case-head{display:grid;gap:10px}
+.case-head h3{font-size:clamp(1.5rem,3vw,2rem);font-weight:800;letter-spacing:-.015em}
+.case-head .sub{font-size:1.08rem;color:var(--muted);max-width:60ch}
+.tags{display:flex;flex-wrap:wrap;gap:6px}
+.tag{font-family:var(--f-mono);font-size:.72rem;padding:3px 8px;border-radius:4px;background:var(--accent-soft);color:var(--accent)}
+.cols{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.cols > div{min-width:0}
+.cols h4{font-family:var(--f-mono);font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 8px;font-weight:500}
+.cols p{font-size:.95rem}
+
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border-top:1px solid var(--line)}
+.stat{padding:18px 18px 0 0;display:grid;gap:4px;min-width:0}
+.stat + .stat{padding-left:18px;border-left:1px solid var(--line)}
+.stat strong{font-family:var(--f-display);font-size:2.1rem;font-weight:800;color:var(--warn);font-variant-numeric:tabular-nums;line-height:1}
+.stat span{font-size:.88rem;color:var(--muted)}
+
+.split{display:grid;gap:10px}
+.split .barline{display:flex;height:34px;border-radius:6px;overflow:hidden;font-family:var(--f-mono);font-size:.78rem}
+.split .ok{background:var(--accent);color:var(--bg);display:flex;align-items:center;padding-left:12px;white-space:nowrap}
+.split .bad{background:var(--warn-soft);color:var(--warn);display:flex;align-items:center;justify-content:flex-end;padding-right:12px;white-space:nowrap;background-image:repeating-linear-gradient(135deg,transparent 0 6px,color-mix(in srgb,var(--warn) 14%,transparent) 6px 12px)}
+.split .legend{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:.88rem;color:var(--muted)}
+.split .legend b{color:var(--ink);font-variant-numeric:tabular-nums}
+
+.pillars{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+.pillar{border-top:2px solid var(--ink);padding-top:12px;display:grid;gap:6px;align-content:start;min-width:0}
+.pillar b{font-family:var(--f-display);font-size:1.05rem}
+.pillar p{font-size:.88rem;color:var(--muted)}
+
+.code{background:var(--code-bg);border-radius:8px;overflow-x:auto;min-width:0}
+.code pre{margin:0;padding:18px;font-family:var(--f-mono);font-size:.8rem;line-height:1.7;color:var(--ink)}
+.code .cap{font-family:var(--f-mono);font-size:.7rem;color:var(--muted);padding:10px 18px 0}
+
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:0;counter-reset:s}
+.step{padding:14px 16px 14px 0;display:grid;gap:4px;align-content:start;min-width:0}
+.step + .step{padding-left:16px;border-left:1px dashed var(--line)}
+.step .n{font-family:var(--f-mono);font-size:.7rem;color:var(--accent)}
+.step b{font-family:var(--f-display);font-size:1.05rem}
+.step code{font-family:var(--f-mono);font-size:.72rem;color:var(--muted);word-break:break-word}
+.step p{font-size:.88rem;color:var(--muted)}
+
+.note{font-size:.88rem;color:var(--muted);padding-left:14px;border-left:2px solid var(--line);max-width:70ch}
+
+/* ---------- experience / education ---------- */
+.timeline{display:grid;gap:0}
+.row{display:grid;grid-template-columns:180px 1fr;gap:24px;padding:24px 0;border-top:1px solid var(--line)}
+.row:last-child{border-bottom:1px solid var(--line)}
+.row .when{font-family:var(--f-mono);font-size:.8rem;color:var(--muted);padding-top:4px}
+.row h3{font-size:1.25rem;font-weight:700}
+.row .org{color:var(--muted);margin-top:2px}
+.row ul{margin:12px 0 0;padding-left:18px;display:grid;gap:6px;max-width:68ch}
+.row li{font-size:.95rem}
+
+.academy{display:grid;grid-template-columns:repeat(5,1fr);gap:16px;margin-top:8px}
+.block{display:grid;gap:8px;align-content:start;min-width:0}
+.block h4{margin:0;font-family:var(--f-mono);font-size:.72rem;color:var(--accent);font-weight:500;letter-spacing:.06em;text-transform:uppercase}
+.block ul{margin:0;padding:0;list-style:none;display:grid;gap:4px}
+.block li{font-size:.86rem;color:var(--ink);padding-left:10px;border-left:1px solid var(--line)}
+
+.stack{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.stack > div{display:grid;gap:10px;align-content:start}
+.stack h4{margin:0;font-family:var(--f-display);font-size:1.05rem}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--f-mono);font-size:.76rem;padding:4px 10px;border:1px solid var(--line);border-radius:999px;background:var(--surface)}
+
+footer{margin-top:88px;padding-block:40px 56px;border-top:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap}
+footer h2{font-size:clamp(1.5rem,3vw,2rem);font-weight:800}
+footer p{color:var(--muted);margin-top:6px}
+
+@media (max-width:860px){
+  .hero,.about{grid-template-columns:1fr;gap:32px}
+  .hero{padding-block:48px 40px}
+  .cols,.stack{grid-template-columns:1fr}
+  .pillars,.steps{grid-template-columns:1fr 1fr}
+  .step + .step{border-left:0;padding-left:0}
+  .step:nth-child(even){padding-left:16px;border-left:1px dashed var(--line)}
+  .academy{grid-template-columns:1fr 1fr}
+  .row{grid-template-columns:1fr;gap:6px}
+}
+@media (max-width:520px){
+  .stats{grid-template-columns:1fr}
+  .stat + .stat{padding-left:0;border-left:0;border-top:1px solid var(--line);padding-top:14px}
+  .stat{padding-bottom:14px}
+  .pillars,.steps,.academy{grid-template-columns:1fr}
+  .step:nth-child(even){padding-left:0;border-left:0}
+  .arrow{display:none}
+  .facts div{grid-template-columns:1fr;gap:2px}
+}
+@media (prefers-reduced-motion:no-preference){
+  .hero > *{animation:rise .6s ease both}
+  .hero > *:nth-child(2){animation-delay:.12s}
+  @keyframes rise{from{transform:translateY(10px)}to{transform:none}}
+}
+</style>
+<style>body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+
+<div class="wrap">
+
+<header class="hero">
+  <div>
+    <p class="eyebrow">Ingeniería de Datos · Lima, Perú</p>
+    <h1 style="margin-top:14px">Stefano Mazzotti<span>Data Engineering Trainee</span></h1>
+    <p class="lede">Construyo pipelines en BigQuery que convierten datos crudos en información confiable para el negocio.</p>
+    <div class="meta">
+      <span>Ingeniería de Sistemas · UPC</span>
+      <span>Data &amp; Governance · Interseguro</span>
+    </div>
+    <a class="btn" href="https://www.linkedin.com/in/stefano-mazzotti-776895239/" target="_blank" rel="noopener">Ver perfil en LinkedIn ↗</a>
+  </div>
+
+  <div class="query" aria-label="Consulta de ejemplo que resume el perfil">
+    <div class="bar"><span>perfil.sql</span><span>BigQuery · US</span></div>
+<pre><span class="kw">SELECT</span> rol, area, foco
+<span class="kw">FROM</span> `portafolio.stefano.experiencia`
+<span class="kw">WHERE</span> estado = <span class="str">'ACTIVO'</span>
+<span class="kw">QUALIFY</span> <span class="kw">ROW_NUMBER</span>() <span class="kw">OVER</span>(
+  <span class="kw">ORDER BY</span> fecha_inicio <span class="kw">DESC</span>) = <span class="num">1</span>;</pre>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>rol</th><th>area</th><th>foco</th></tr></thead>
+        <tbody><tr><td>Trainee Data Eng.</td><td>Data &amp; Governance</td><td>ETL · Calidad · Linaje</td></tr></tbody>
+      </table>
+    </div>
+    <div class="foot">1 fila · 0.3 s · 12 KB procesados</div>
+  </div>
+</header>
+
+<nav class="lineage" aria-label="Arquitectura con la que trabajo">
+  <div class="node"><b>Landing</b><small>Cloud Storage · CSV intacto</small></div>
+  <span class="arrow" aria-hidden="true">→</span>
+  <div class="node"><b>Raw</b><small>BigQuery · tal como llega</small></div>
+  <span class="arrow" aria-hidden="true">→</span>
+  <div class="node"><b>Master</b><small>limpieza · deduplicación</small></div>
+  <span class="arrow" aria-hidden="true">→</span>
+  <div class="node"><b>Business</b><small>MERGE · listo para consumo</small></div>
+</nav>
+
+<section id="sobre-mi">
+  <div class="sec-head"><h2>Sobre mí</h2><span class="eyebrow">Perfil</span></div>
+  <div class="about">
+    <div>
+      <p>Soy estudiante de Ingeniería de Sistemas en la UPC y trabajo como Trainee de Ingeniería de Datos en el área de Data &amp; Governance de Interseguro, una de las aseguradoras líderes del Perú.</p>
+      <p>Trabajo entre la ingeniería y el gobierno de datos: automatizo tablas, mapeo fuentes de datos financieras y diseño reglas de calidad para que las áreas de negocio tomen decisiones con datos en los que pueden confiar.</p>
+      <p>Me interesa que cada dato tenga trazabilidad. Si un registro se descarta, debe quedar escrito por qué.</p>
+    </div>
+    <dl class="facts">
+      <div><dt>Rol actual</dt><dd>Trainee de Ingeniería de Datos</dd></div>
+      <div><dt>Área</dt><dd>Data &amp; Governance, Interseguro</dd></div>
+      <div><dt>Trabajo con</dt><dd>VP de Inversiones y VP de Tecnología</dd></div>
+      <div><dt>Formación</dt><dd>Ingeniería de Sistemas, UPC</dd></div>
+      <div><dt>Programa</dt><dd>Data Academy, ruta Data Engineer</dd></div>
+      <div><dt>Stack</dt><dd>BigQuery, SQL, GCP, Airflow, Python, Git</dd></div>
+    </dl>
+  </div>
+</section>
+
+<section id="proyectos">
+  <div class="sec-head"><h2>Proyectos</h2><span class="eyebrow">Casos de estudio</span></div>
+
+  <!-- Caso 1 -->
+  <article class="case">
+    <div class="case-head">
+      <p class="eyebrow">Reto 1 · Demo Day de Data Academy</p>
+      <h3>El Filtro de Confianza</h3>
+      <p class="sub">De 10,000 leads sospechosos a una base certificada que el equipo de Ventas puede usar sin revisar a mano.</p>
+      <div class="tags"><span class="tag">Cloud Storage</span><span class="tag">BigQuery</span><span class="tag">Stored Procedures</span><span class="tag">Calidad de datos</span></div>
+    </div>
+
+    <div class="cols">
+      <div><h4>El problema</h4><p>Una campaña de Seguro de Vida generó 10,000 leads, pero el Call Center encontraba teléfonos con letras, correos truncos como “carlos@”, prospectos llamados dos veces y fechas de nacimiento en el año 2030.</p></div>
+      <div><h4>La investigación</h4><p>Antes de limpiar, perfilé la capa Raw con consultas exploratorias. Los números confirmaron cada queja y mostraron que la anomalía de fechas aparecía pareja en los 5 canales: el origen era el formulario de la agencia.</p></div>
+      <div><h4>La solución</h4><p>Un pipeline de punta a punta en la nube con toda la limpieza en un stored procedure de una sola pasada. Cada ejecución registra en una tabla de logs cuántos leads entraron, sobrevivieron y se descartaron.</p></div>
+    </div>
+
+    <div class="stats" aria-label="Hallazgos del perfilado">
+      <div class="stat"><strong>206</strong><span>registros duplicados: 169 prospectos aparecían hasta 4 veces</span></div>
+      <div class="stat"><strong>264</strong><span>leads sin email ni teléfono, imposibles de contactar</span></div>
+      <div class="stat"><strong>310</strong><span>fechas de nacimiento entre 2026 y 2036 (3.1% de la base)</span></div>
+    </div>
+
+    <div class="pillars">
+      <div class="pillar"><b>Unicidad</b><p>Un DNI, un prospecto. <span class="mono">ROW_NUMBER()</span> conserva solo la captura más reciente.</p></div>
+      <div class="pillar"><b>Completitud</b><p>Sin email ni teléfono válido se descarta. Nombre vacío se guarda como “NO REGISTRADO”.</p></div>
+      <div class="pillar"><b>Consistencia</b><p>DNI depurado a 8 dígitos. Una sola regla de 18 años elimina menores y fechas futuras.</p></div>
+      <div class="pillar"><b>Validez</b><p>Email validado con RegEx. Teléfono sin letras ni símbolos; si queda vacío, se anula.</p></div>
+    </div>
+
+    <div class="split" role="img" aria-label="De 10,000 leads, 5,936 quedaron certificados (59.4%) y 4,064 se descartaron (40.6%)">
+      <p class="eyebrow">Resultado · 10,000 leads en Raw</p>
+      <div class="barline">
+        <div class="ok" style="width:59.4%">5,936 certificados</div>
+        <div class="bad" style="width:40.6%">4,064</div>
+      </div>
+      <div class="legend"><span><b>59.4%</b> lista para Ventas, con 0 duplicados y 0 incontactables</span><span><b>40.6%</b> descartado, cada uno con su motivo registrado</span></div>
+    </div>
+
+    <p class="note">Recomendación al negocio: exigir validación de datos en el formulario de la agencia, para que los datos malos no entren al sistema en lugar de filtrarlos después.</p>
+  </article>
+
+  <!-- Caso 2 -->
+  <article class="case">
+    <div class="case-head">
+      <p class="eyebrow">Reto 2 · Data Academy</p>
+      <h3>Pipeline de leads en cuatro capas</h3>
+      <p class="sub">Una ingesta diaria idempotente que lleva leads desde Cloud Storage hasta una tabla de clientes consolidada por DNI.</p>
+      <div class="tags"><span class="tag">BigQuery</span><span class="tag">MERGE</span><span class="tag">Particionamiento</span><span class="tag">Clustering</span><span class="tag">Idempotencia</span></div>
+    </div>
+
+    <div class="steps">
+      <div class="step"><span class="n">1 · LANDING → RAW</span><b>Carga del archivo</b><p>Borra la partición del día y ejecuta <span class="mono">LOAD DATA</span> desde el CSV, así se puede reprocesar sin duplicar.</p><code>sp_landing_a_raw</code></div>
+      <div class="step"><span class="n">2 · RAW → MASTER</span><b>Limpieza</b><p>CTEs encadenadas: normaliza DNI, email y teléfono, filtra reglas de calidad y deduplica.</p><code>sp_raw_a_master</code></div>
+      <div class="step"><span class="n">3 · MASTER → BUSINESS</span><b>Consolidación</b><p>Un <span class="mono">MERGE</span> por DNI actualiza clientes existentes sin perder datos previos e inserta los nuevos.</p><code>sp_master_a_business</code></div>
+      <div class="step"><span class="n">4 · CONTROL</span><b>Trazabilidad</b><p>Cada fila lleva fecha de rutina, fecha de carga, frecuencia y archivo de origen.</p><code>fecha_rutina · fecha_carga</code></div>
+    </div>
+
+    <div class="code">
+      <p class="cap">sp_master_a_business · fragmento</p>
+<pre><span class="kw">MERGE</span> business.m_clientelead T
+<span class="kw">USING</span> (
+  <span class="kw">SELECT</span> * <span class="kw">FROM</span> master.m_lead
+  <span class="kw">WHERE</span> fecha_archivo = p_fecha_archivo
+  <span class="kw">QUALIFY ROW_NUMBER</span>() <span class="kw">OVER</span>(
+    <span class="kw">PARTITION BY</span> dni <span class="kw">ORDER BY</span> fecha_registro <span class="kw">DESC</span>) = <span class="num">1</span>
+) S
+<span class="kw">ON</span> T.dni = S.dni
+<span class="kw">WHEN MATCHED THEN UPDATE SET</span>
+  <span class="cm">-- enriquece sin borrar lo que ya se sabía</span>
+  T.email    = <span class="kw">COALESCE</span>(S.email, T.email),
+  T.telefono = <span class="kw">COALESCE</span>(S.telefono, T.telefono),
+  T.nombre   = <span class="kw">CASE WHEN</span> S.nombre = <span class="str">'NO REGISTRADO'</span>
+               <span class="kw">THEN</span> T.nombre <span class="kw">ELSE</span> S.nombre <span class="kw">END</span>
+<span class="kw">WHEN NOT MATCHED THEN INSERT</span> (...)</pre>
+    </div>
+
+    <p class="note">Diseño de tablas pensado en costo: partición por <span class="mono">fecha_archivo</span> para que las consultas por rango de fechas lean solo esos días, y clustering por <span class="mono">lead_id</span>, <span class="mono">ciudad</span> y <span class="mono">dni</span> para búsquedas puntuales del Call Center.</p>
+  </article>
+
+  <!-- Caso 3 -->
+  <article class="case">
+    <div class="case-head">
+      <p class="eyebrow">Prácticas · Interseguro</p>
+      <h3>Automatización de datos de Inversiones</h3>
+      <p class="sub">Automatización de tablas y mapeo completo del sistema fuente del portafolio de inversiones hacia la infraestructura analítica de TI.</p>
+      <div class="tags"><span class="tag">ETL / ELT</span><span class="tag">Data Governance</span><span class="tag">Data Lineage</span><span class="tag">Sector financiero</span></div>
+    </div>
+    <div class="cols">
+      <div><h4>Contexto</h4><p>La VP de Inversiones necesitaba datos de su portafolio disponibles y consistentes para análisis, y la VP de TI necesitaba un flujo gobernado y documentado.</p></div>
+      <div><h4>Qué hice</h4><p>Automaticé tablas que antes se procesaban de forma manual y mapeé la fuente de punta a punta, conectando directo al origen para asegurar trazabilidad y calidad.</p></div>
+      <div><h4>Impacto</h4><p>Menos tiempo de procesamiento manual, menor riesgo de inconsistencias y datos confiables disponibles para decisiones financieras.</p></div>
+    </div>
+    <p class="note">Propuesta de mejora presentada: validaciones automáticas de calidad en la ingesta (nulos inesperados, variaciones atípicas en montos, formatos) con alertas antes de que los datos lleguen a las tablas finales. Los detalles del sistema y los datos son confidenciales.</p>
+  </article>
+</section>
+
+<section id="experiencia">
+  <div class="sec-head"><h2>Experiencia y formación</h2><span class="eyebrow">Trayectoria</span></div>
+  <div class="timeline">
+    <div class="row">
+      <span class="when">jun 2026 · actualidad</span>
+      <div>
+        <h3>Trainee de Ingeniería de Datos</h3>
+        <p class="org">Interseguro · Data &amp; Governance</p>
+        <ul>
+          <li>Automatización de tablas y flujos ETL/ELT para datos financieros del portafolio de inversiones.</li>
+          <li>Mapeo e integración del sistema fuente de Inversiones con la arquitectura de datos de TI.</li>
+          <li>Gobierno de datos: trazabilidad, estandarización y calidad de datos provenientes de sistemas core.</li>
+          <li>Coordinación con la VP de Inversiones y la VP de Tecnología de la Información.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="row">
+      <span class="when">2026</span>
+      <div>
+        <h3>Data Academy · ruta Data Engineer</h3>
+        <p class="org">Programa de formación de trainees, Interseguro</p>
+        <div class="academy">
+          <div class="block"><h4>Bloque 1</h4><ul><li>SQL avanzado</li><li>Anatomía de un DAG</li><li>Git y calidad de pipelines</li><li>Particionamiento y clustering</li></ul></div>
+          <div class="block"><h4>Bloque 2</h4><ul><li>Ingestas desde Cloud Storage</li><li>Estructuras anidadas</li><li>Operadores y sensores</li><li>Costos y slots (FinOps)</li></ul></div>
+          <div class="block"><h4>Bloque 3</h4><ul><li>Fundamentos de GCP</li><li>Python modular</li><li>Unit testing de pipelines</li><li>Variables y secretos en Airflow</li><li>Vistas y modelado</li></ul></div>
+          <div class="block"><h4>Bloque 4</h4><ul><li>Calidad de datos: 4 pilares</li><li>BigQuery ML</li><li>Observabilidad y logs</li><li>Ingestas incrementales</li></ul></div>
+          <div class="block"><h4>Bloque 5</h4><ul><li>Almacenamiento desacoplado</li><li>Despliegue seguro</li><li>Duplicados y nulos en SQL</li><li>Troubleshooting de DAGs</li></ul></div>
+        </div>
+      </div>
+    </div>
+    <div class="row">
+      <span class="when">2021 · actualidad</span>
+      <div>
+        <h3>Ingeniería de Sistemas</h3>
+        <p class="org">Universidad Peruana de Ciencias Aplicadas (UPC)</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="habilidades">
+  <div class="sec-head"><h2>Habilidades</h2><span class="eyebrow">Stack técnico</span></div>
+  <div class="stack">
+    <div><h4>Datos y nube</h4><div class="chips"><span class="chip">BigQuery</span><span class="chip">SQL avanzado</span><span class="chip">Cloud Storage</span><span class="chip">GCP</span><span class="chip">BigQuery ML</span><span class="chip">Stored Procedures</span></div></div>
+    <div><h4>Ingeniería</h4><div class="chips"><span class="chip">Apache Airflow</span><span class="chip">Python</span><span class="chip">Git</span><span class="chip">Unit testing</span><span class="chip">ETL / ELT</span><span class="chip">Ingesta incremental</span></div></div>
+    <div><h4>Gobierno y calidad</h4><div class="chips"><span class="chip">Data Quality</span><span class="chip">Data Lineage</span><span class="chip">Metadata</span><span class="chip">Modelado de datos</span><span class="chip">FinOps</span><span class="chip">Observabilidad</span></div></div>
+  </div>
+</section>
+
+<footer>
+  <div>
+    <h2>Conversemos</h2>
+    <p>Busco seguir creciendo en ingeniería y gobierno de datos.</p>
+  </div>
+  <a class="btn" style="margin-top:0" href="https://www.linkedin.com/in/stefano-mazzotti-776895239/" target="_blank" rel="noopener">Escríbeme en LinkedIn ↗</a>
+</footer>
+
+</div>
+</body>
+</html>
